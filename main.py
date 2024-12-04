@@ -42,21 +42,22 @@ class Game:
 		self.grid = ([[Tile() for i in range(constants.gameBoardSize)] for j in range(constants.gameBoardSize)])
 		w = h = constants.gameBoardSize*constants.gridSize
 		self.rect = pg.Rect(resolution[0]/2 - w/2, resolution[1]/2 - h/2, w, h)
+		self.screen = screen
 
 		self.hasStarted = False
 		self.gameOver = False
   
-		self.screen = screen
 		self.snake:Snake = snake
 		self.newHead = None
 		self.fruit = [20, 6]
+		self.score = 0
   
 		self.lastUpdate = 0
 		self.keyBuffer = list()
 
 	def update(self):
 		now = datetime.datetime.now().timestamp() * 1000
-		if now - self.lastUpdate >= 50:
+		if now - self.lastUpdate >= 200:
 			self.lastUpdate = now
 			for row in self.grid:
 				for tile in row:
@@ -94,11 +95,19 @@ class Game:
 		x, y, w, h, = self.rect
 		pg.draw.lines(self.screen, pg.Color("azure2"), True, [(x, y),(x + w, y),(x + w, y + h),(x, y + h)])
   
+		scoreTItle = constants.font.render(f"{self.score:02d}", False, pg.Color("azure2"))
+		_, __, w, h = scoreTItle.get_rect()
+		screen.blit(scoreTItle, (resolution[0] * resizeScale * .85, resolution[1]/2 - h/2))
+  
 		# Game over message
 		if self.gameOver:
 			gameOverTitle = constants.font.render("GAME OVER", False, pg.Color("azure2"))
 			_, __, w, h = gameOverTitle.get_rect()
-			screen.blit(gameOverTitle, (resolution[0]/2 - w/2, resolution[1]/2 - h/2))	
+			screen.blit(gameOverTitle, (resolution[0]/2 - w/2, resolution[1]/2 - h/2))
+   
+			playAgainTitle = constants.font.render("Press R to restart", False, pg.Color("azure2"))
+			_, __, w, h = playAgainTitle.get_rect()
+			screen.blit(playAgainTitle, (resolution[0]/2 - w/2, resolution[1]/2 - h/2 + h + 20 * resizeScale))
 
 class Snake:
 	def	__init__(self) -> None:
@@ -121,7 +130,7 @@ class Snake:
 			self.body.pop()
 		else:
 			game.generateFruit()
-
+			game.score += 1
 
 	def checkCollisions(self) -> None|bool:
 		if self.newHead[0] < 0: self.newHead[0] = constants.gameBoardSize-1
@@ -137,7 +146,6 @@ class Snake:
 
 game = Game(screen, Snake())
 
-
 while running:
 	# poll for events
 	# pg.QUIT event means the user clicked X to close your window
@@ -149,6 +157,8 @@ while running:
 			if event.key in constants.keys: game.keyBuffer.insert(0, event.key)
 			if keys[pg.K_ESCAPE]:
 				pg.quit()
+			if keys[pg.K_r] and game.gameOver:
+				game = Game(screen, Snake())
 	# fill the screen with a color to wipe away anything from last frame
 	screen.fill("black")
  

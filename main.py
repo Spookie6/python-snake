@@ -11,31 +11,118 @@ clock = pg.time.Clock()
 running = True
 dt = 0
 
-resizeScale = resolution[1] / 720
+resizeFactor = resolution[1] / 720
+
+spritesheet = pg.image.load("spritesheet.png").convert_alpha()
 
 class Constants:
 	def __init__(self) -> None:
 		self.font = pg.font.Font("RetroFont.ttf", 32)
 
-		self.gridSize = 16 * resizeScale
+		self.gridSize = 16 * resizeFactor
 		self.gameBoardSize = 40 # n^2 * gridsize
 		
 		self.directions = [(-1, 0), (1, 0), (0, -1), (0, 1)] # left, right, up, down
 		self.keys = [97, 100, 119, 115]	# A D W S
  
-		self.colors = ["gray3", "darkred", "darkblue", "purple"]
-						# 0: empty, 1: fruit, 2: body, 3: head
+		self.colors = ["gray3", "darkred", "darkblue", "purple", "pink"]
+						# 0: empty, 1: fruit, 2: body, 3: head, 4: tail
 
 constants = Constants()
 
+# class Sprites():
+# 	vertical = (128, 64)
+# 	horizontal = (64, 0)
+	
+# 	corner_br = (0, 0)
+# 	corner_bl = (128, 0)
+# 	corner_tr = (0, 64)
+# 	corner_tl = (128, 128)
+	
+# 	head = [(192, 64),(256, 0),(256, 64),(192, 0)]
+	
+# tails = [(192, 192), (256, 128),(192, 128),(256, 192)]
+# 	tail_l = 
+# 	tail_r = 
+# 	tail_t = 
+# 	tail_b = 
+	
+# 	fruit = (0, 192)
+	
+# 	def __init__(self):
+# 		keys = list(filter(lambda x : not x.startswith("__"), Sprites.__dict__.keys()))
+
+# 		for key in keys:
+# 			value = Sprites.__dict__[key]
+# 			# self[key.split("_")[0]][key.split("_")[1]] = 
+
+def getImg(coords) -> pg.Surface:
+	img = pg.Surface((64, 64))
+	img.blit(spritesheet, (0, 0), (coords[0], coords[1], 64, 64))
+	img = pg.transform.scale(img, (constants.gridSize, constants.gridSize))
+	img.set_colorkey((0, 0, 0))
+	return img
+
+heads = [(192, 64),(256, 0),(192, 0),(256, 64),(0, 0)]
+tails = [(256, 128),(192, 192),(256, 192),(192, 128)]
+
+corners = [[(128, 128),(128, 0)], [(0, 64),]]
+
+sprites = dict({"head": [], "tail": [], "corner": []})
+
+sprites["fruit"] = getImg((0, 192))
+sprites["vertical"] = getImg((128, 64))
+sprites["horizontal"] = getImg((64, 0))
+
+for head in heads:
+	img = getImg(head)
+	sprites["head"].append(img)
+ 
+for tail in tails:
+	img = getImg(tail)
+	sprites["tail"].append(img)
+
 class Tile():
 	def __init__(self) -> None:
-		self.id = 0 # 0: empty, 1: fruit, 2: body, 3: head
-		self.color = constants.colors[self.id]
+		self.update(0)
   
 	def update(self, id) -> None:
-		self.id = id
+		self.id = id # empty, 1: fruit, 2: body, 3: head, 4: tail
 		self.color = constants.colors[id]
+		self.sprite = None
+		if id == 2:
+			coords = None
+			for y, row in enumerate(game.grid):
+				if self in row:
+					coords = [row.index(self), y]
+			index = game.snake.body.index(coords)
+
+			current = game.snake.body[index]
+			prev = game.snake.body[index -1]
+			next = game.snake.body[index +1]
+			
+			prevDir = [current[0] - prev[0], current[1] - prev[1]]
+			nextDir = [next[0] - current[0], next[1] - current[1]]
+	
+			print(prevDir, nextDir)
+   
+			prevDirIndex = constants.directions.index(tuple(prevDir))
+			nextDirIndex = constants.directions.index(tuple(nextDir))
+   
+			if prevDirIndex == nextDirIndex:
+				if prevDirIndex == 0 or prevDir == 1:
+					self.sprite = sprites["horizontal"]
+		if id == 3:
+			index = constants.directions.index(tuple(game.snake.direction))
+			self.sprite = sprites["head"][index]
+		if id == 4:
+			lastInd = len(game.snake.body) - 1
+			direction = [game.snake.body[lastInd][0] - game.snake.body[lastInd - 1][0], game.snake.body[lastInd][1] - game.snake.body[lastInd - 1][1]]
+			index = constants.directions.index(tuple(direction))
+			self.sprite = sprites["tail"][index]
+	
+		if id == 1:
+			self.sprite = sprites["fruit"]
 
 class Game:
 	def __init__(self, screen:pg.Surface, snake) -> None:
@@ -67,8 +154,9 @@ class Game:
 			self.grid[self.fruit[0]][self.fruit[1]].update(1)
 			for index, coord in enumerate(self.snake.body):
 				if index == 0: self.grid[coord[1]][coord[0]].update(3)
+				elif index == len(self.snake.body) - 1: self.grid[coord[1]][coord[0]].update(4)
 				else: self.grid[coord[1]][coord[0]].update(2)
-
+			# print(self.snake.body)
 		self.draw()
   
 	def generateFruit(self):
@@ -88,8 +176,11 @@ class Game:
 		for i, row in enumerate(self.grid):
 			for j, tile in enumerate(row):
 				gs = constants.gridSize
-				rect = pg.Rect(game.rect[0] + j*gs, game.rect[1] + i*gs, gs-1, gs-1)
-				pg.draw.rect(self.screen, tile.color, rect)
+				if tile.sprite:
+					self.screen.blit(tile.sprite, (game.rect[0] + j*gs, game.rect[1] + i*gs))
+				else:
+					rect = pg.Rect(game.rect[0] + j*gs, game.rect[1] + i*gs, gs, gs)
+					pg.draw.rect(self.screen, tile.color, rect)
 
 		# Draw some lines around the gameboard
 		x, y, w, h, = self.rect
@@ -97,7 +188,7 @@ class Game:
   
 		scoreTItle = constants.font.render(f"{self.score:02d}", False, pg.Color("azure2"))
 		_, __, w, h = scoreTItle.get_rect()
-		screen.blit(scoreTItle, (resolution[0] * resizeScale * .85, resolution[1]/2 - h/2))
+		screen.blit(scoreTItle, (resolution[0] * resizeFactor * .85, resolution[1]/2 - h/2))
   
 		# Game over message
 		if self.gameOver:
@@ -107,7 +198,7 @@ class Game:
    
 			playAgainTitle = constants.font.render("Press R to restart", False, pg.Color("azure2"))
 			_, __, w, h = playAgainTitle.get_rect()
-			screen.blit(playAgainTitle, (resolution[0]/2 - w/2, resolution[1]/2 - h/2 + h + 20 * resizeScale))
+			screen.blit(playAgainTitle, (resolution[0]/2 - w/2, resolution[1]/2 - h/2 + h + 20 * resizeFactor))
 
 class Snake:
 	def	__init__(self) -> None:
